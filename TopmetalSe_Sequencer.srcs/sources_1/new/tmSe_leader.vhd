@@ -43,6 +43,7 @@ entity tmSe_leader is
     SA_COL_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
     SA_ROW_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
     SA_OUT_EN              : IN std_logic; --switch: '1' = FPGA drives SA select lines, '0' = high-Z (Caravel may drive them)
+    SW_SPARE               : IN STD_LOGIC_VECTOR( 8 downto 2); --switches SW2-SW8 (SW8 = LED mode)
     
     
     --OUTPUTS
@@ -111,6 +112,8 @@ architecture Behavioral of tmSe_leader is
     SIGNAL SA_ROW_BUF : STD_LOGIC_VECTOR (2 downto 0);
     SIGNAL SA_COL_BUF : STD_LOGIC_VECTOR (2 downto 0);
     SIGNAL SA_OUT_EN_SYNC : std_logic_vector(1 downto 0) := "00";
+    
+    SIGNAL SW_ALL : std_logic_vector(15 downto 0); -- SW_ALL(n) = switch SWn on the Basys3
         
     SIGNAL SA_PXL_ADDR : std_logic_vector(3 downto 0);
     SIGNAL SA_PXL_VAL : std_logic := '0';
@@ -269,6 +272,10 @@ BEGIN
             SA_OUT_EN_SYNC <= SA_OUT_EN_SYNC(0) & SA_OUT_EN;
         END IF;
     END PROCESS;
+    
+    SW_ALL <= SA_ROW_SWITCH(0) & SA_ROW_SWITCH(1) & SA_ROW_SWITCH(2)   -- SW15..SW13
+            & SA_COL_SWITCH(0) & SA_COL_SWITCH(1) & SA_COL_SWITCH(2)   -- SW12..SW10
+            & SA_OUT_EN & SW_SPARE & CONFIGURE_LED & RESET;            -- SW9, SW8..SW2, SW1, SW0
     
     SA_ROW_OUT <= SA_ROW_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
     SA_COL_OUT <= SA_COL_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
@@ -433,8 +440,12 @@ BEGIN
             led_buf <= DAC_DAT_REG;
         END IF;
         
+        -- SW8 off: each LED shows the switch below it (checks the switches and the bitstream).
+        -- SW8 on: DAC data, upper or lower 16 bits selected by SW1 (CONFIGURE_LED).
         IF falling_edge(INTERN_CLK) THEN
-            if CONFIGURE_LED = '1' THEN
+            if SW_SPARE(8) = '0' THEN
+                led <= SW_ALL;
+            elsif CONFIGURE_LED = '1' THEN
                 led <= led_buf(31 downto 16);
             else
                 led <= led_buf(15 downto 0);

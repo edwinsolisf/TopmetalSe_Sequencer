@@ -52,6 +52,9 @@ Cabling (matches the test-board silkscreen):
 Switches: SW9 = `SA_OUT_EN` (on: FPGA drives the SA select lines; off: lines released, weak pulldown,
 so Caravel firmware can drive them). SW12/SW11/SW10 = column 0/1/2, SW15/SW14/SW13 = row 0/1/2 (turn on one of each).
 
+LEDs: with SW8 off, each LED lights when the switch below it is on (a quick check that the switches and the
+bitstream work). With SW8 on, the LEDs show the last DAC word as before (SW1 picks the upper or lower 16 bits).
+
 The Respin's COL_SEL2 is on Caravel IO26, which the test board does not wire. The FPGA's column-2 line
 reaches IO36 instead, and the Caravel firmware `TopmetalSe-V1/Firmware/respin_sa/fpga_mode` copies IO36 to IO26.
 The large array pins are unchanged: the FPGA already compensates for the swapped row/col net labels on the board (commit 83f209a).
