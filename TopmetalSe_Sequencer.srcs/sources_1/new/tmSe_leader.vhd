@@ -42,6 +42,7 @@ entity tmSe_leader is
     
     SA_COL_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
     SA_ROW_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
+    SA_OUT_EN              : IN std_logic; --switch: '1' = FPGA drives SA select lines, '0' = high-Z (Caravel may drive them)
     
     
     --OUTPUTS
@@ -57,8 +58,8 @@ entity tmSe_leader is
     LA_COL_CLK      : OUT std_logic;
     
     --Below controls small array(clocking and single pixel selection)
-    --SA_ROW_OUT          : OUT STD_LOGIC_VECTOR( 2 downto 0); --PMOD
-    --SA_COL_OUT          : OUT STD_LOGIC_VECTOR( 2 downto 0); --PMOD
+    SA_ROW_OUT          : OUT STD_LOGIC_VECTOR( 2 downto 0); --PMOD
+    SA_COL_OUT          : OUT STD_LOGIC_VECTOR( 2 downto 0); --PMOD
     
     SPI_OUT         : OUT std_logic; --PMOD
     SPI_SYNC        : OUT std_logic; --PMOD
@@ -109,6 +110,7 @@ architecture Behavioral of tmSe_leader is
     
     SIGNAL SA_ROW_BUF : STD_LOGIC_VECTOR (2 downto 0);
     SIGNAL SA_COL_BUF : STD_LOGIC_VECTOR (2 downto 0);
+    SIGNAL SA_OUT_EN_SYNC : std_logic_vector(1 downto 0) := "00";
         
     SIGNAL SA_PXL_ADDR : std_logic_vector(3 downto 0);
     SIGNAL SA_PXL_VAL : std_logic := '0';
@@ -166,21 +168,21 @@ architecture Behavioral of tmSe_leader is
     );
     END COMPONENT;
     
---    COMPONENT SA_Sequencer
---        PORT(  
---          INTERN_CLK : IN std_logic;
---          RESET      : IN std_logic;
---          USE_SWITCH : IN std_logic;
---          SA_PXL_ADDR: IN std_logic_vector(3 downto 0);
+    COMPONENT SA_Sequencer
+        PORT(  
+          INTERN_CLK : IN std_logic;
+          RESET      : IN std_logic;
+          USE_SWITCH : IN std_logic;
+          SA_PXL_ADDR: IN std_logic_vector(3 downto 0);
           
---          ROW_SWITCH : IN std_logic_vector(2 downto 0);
---          COL_SWITCH : IN std_logic_vector(2 downto 0);
+          ROW_SWITCH : IN std_logic_vector(2 downto 0);
+          COL_SWITCH : IN std_logic_vector(2 downto 0);
           
---          SA_ROW_OUT : OUT std_logic_vector(2 downto 0);
---          SA_COL_OUT : OUT std_logic_vector(2 downto 0)
+          SA_ROW_OUT : OUT std_logic_vector(2 downto 0);
+          SA_COL_OUT : OUT std_logic_vector(2 downto 0)
 
---        );
---    END COMPONENT;
+        );
+    END COMPONENT;
     COMPONENT uart_rx --8 bit UART receiver
         PORT(
 		i_CLK       : in std_logic; --in clock
@@ -245,18 +247,31 @@ BEGIN
 	
     );
     
---    SA_Seq: SA_Sequencer PORT MAP(
+    -- Small array (3x3) pixel select: hardware switches (default) or UART ("D3..D0 0001")
+    SA_Seq: SA_Sequencer PORT MAP(
     
---    INTERN_CLK => INTERN_CLK,
---    RESET => RESET,
---    USE_SWITCH => SA_USE_SWITCH,
---    SA_PXL_ADDR => SA_PXL_ADDR,
---    ROW_SWITCH=> SA_ROW_SWITCH,
---    COL_SWITCH=> SA_COL_SWITCH,
---    SA_ROW_OUT=> SA_ROW_OUT,
---    SA_COL_OUT=> SA_COL_OUT
+    INTERN_CLK => INTERN_CLK,
+    RESET => RESET,
+    USE_SWITCH => SA_USE_SWITCH,
+    SA_PXL_ADDR => SA_PXL_ADDR,
+    ROW_SWITCH=> SA_ROW_SWITCH,
+    COL_SWITCH=> SA_COL_SWITCH,
+    SA_ROW_OUT=> SA_ROW_BUF,
+    SA_COL_OUT=> SA_COL_BUF
 
---    );
+    );
+    
+    -- SA_OUT_EN switch: release the SA select lines (high-Z, weak pulldown in the XDC)
+    -- so the Caravel firmware can drive them without contention.
+    SA_OUT_ENABLE: process(INTERN_CLK)
+    BEGIN
+        IF RISING_EDGE(INTERN_CLK) THEN
+            SA_OUT_EN_SYNC <= SA_OUT_EN_SYNC(0) & SA_OUT_EN;
+        END IF;
+    END PROCESS;
+    
+    SA_ROW_OUT <= SA_ROW_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
+    SA_COL_OUT <= SA_COL_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
     
     --Instantiate a UART, and SPI for a UART-SPI Bridge
     

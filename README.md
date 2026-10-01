@@ -35,6 +35,27 @@ The LA Pixel Selection via UART uses two more words of 8 bits to set the pixel n
 
 The code to control the whole system is in https://github.com/selena0vbb/TopmetalSeDrone
 
+# Small array select with the TopmetalSe-Respin
+
+`tmSe_leader` drives the small array (3x3) select lines again (`SA_Sequencer`, re-enabled).
+Pins are mapped in `topmetal-fpga-constraints.xdc` for the TopmetalSe-Respin; the V1 pins are noted there.
+
+Cabling (matches the test-board silkscreen):
+
+| Basys3 | Test board | Signals |
+|---|---|---|
+| JA | J12 | DAC SPI (JA4/JA9/JA10 = EXTERN_CLK/TRIG_OUT/FRAME_START land on J12 pins 7/6/8, unconnected on the board) |
+| JB | J14 | SA ROW_SEL / COL_SEL |
+| JC | J15 | Large array |
+| JXADC | ADC | ADC_VAL |
+
+Switches: SW9 = `SA_OUT_EN` (on: FPGA drives the SA select lines; off: lines released, weak pulldown,
+so Caravel firmware can drive them). SW12/SW11/SW10 = column 0/1/2, SW15/SW14/SW13 = row 0/1/2 (turn on one of each).
+
+The Respin's COL_SEL2 is on Caravel IO26, which the test board does not wire. The FPGA's column-2 line
+reaches IO36 instead, and the Caravel firmware `TopmetalSe-V1/Firmware/respin_sa/fpga_mode` copies IO36 to IO26.
+The large array pins are unchanged: the FPGA already compensates for the swapped row/col net labels on the board (commit 83f209a).
+
 # SPI Control for TI DAC 8568
 Inside util/, I include a python script which generates the 32-bit values to control a [Texas Instruments DAC 8568](https://www.ti.com/product/DAC8568?utm_source=google&utm_medium=cpc&utm_campaign=asc-null-null-GPN_EN-cpc-pf-google-wwe&utm_content=DAC8568&ds_k=DAC8568&DCM=yes&gclid=EAIaIQobChMIwIbj3O62_wIV-y-tBh3P_wriEAAYASAAEgLwtPD_BwE&gclsrc=aw.ds).
 

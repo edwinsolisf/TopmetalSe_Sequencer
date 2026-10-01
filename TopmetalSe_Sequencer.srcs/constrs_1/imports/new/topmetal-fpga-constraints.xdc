@@ -37,6 +37,9 @@ set_property IOSTANDARD LVCMOS33 [get_ports CONFIGURE_LED]
 #	set_property IOSTANDARD LVCMOS33 [get_ports {trigger_thresh_s
 
 # control the small array through switches on the board
+# SW9: '1' = FPGA drives the SA select lines, '0' = high-Z so the Caravel firmware can drive them
+set_property PACKAGE_PIN T3 [get_ports SA_OUT_EN]
+set_property IOSTANDARD LVCMOS33 [get_ports SA_OUT_EN]
 set_property PACKAGE_PIN T2 [get_ports {SA_COL_SWITCH[2]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {SA_COL_SWITCH[2]}]
 set_property PACKAGE_PIN R3 [get_ports {SA_COL_SWITCH[1]}]
@@ -156,54 +159,87 @@ set_property PACKAGE_PIN G3 [get_ports FRAME_START]
 set_property IOSTANDARD LVCMOS33 [get_ports FRAME_START]
 
 
-##Pmod Header JC
-#Sch name = JC1
-# ADC trigger settings
-set_property PACKAGE_PIN A14 [get_ports SPI_SYNC]
+# ---------------------------------------------------------------------------
+# Header layout (matches the test-board silkscreen):
+#   Basys3 JA <- test board J12 (DAC SPI)      JA1 SYNC, JA7 SCLK, JA2 DIN
+#                JA4 EXTERN_CLK, JA9 TRIG_OUT, JA10 FRAME_START land on J12 pins 7/6/8,
+#                which are unconnected on the test board (tap them there).
+#   Basys3 JB <- test board J14 (SA 3x3 select + xclk)
+#   Basys3 JC <- test board J15 (large array)
+#   JXADC     <- ADC
+# PMOD top row (pins 1-4) meets the board's odd pins 1/3/5/7, bottom row (7-10) the even pins.
+# ---------------------------------------------------------------------------
+
+## DAC SPI on JA (test board J12)
+#Sch name = JA1 -> J12-1 SYNC-
+set_property PACKAGE_PIN J1 [get_ports SPI_SYNC]
 set_property IOSTANDARD LVCMOS33 [get_ports SPI_SYNC]
-#Sch name = JC2
-set_property PACKAGE_PIN A15 [get_ports SPI_SCLK]
+#Sch name = JA7 -> J12-2 SCLK
+set_property PACKAGE_PIN H1 [get_ports SPI_SCLK]
 set_property IOSTANDARD LVCMOS33 [get_ports SPI_SCLK]
-#Sch name = JC3
-set_property PACKAGE_PIN A16 [get_ports SPI_OUT]
+#Sch name = JA2 -> J12-3 Din
+set_property PACKAGE_PIN L2 [get_ports SPI_OUT]
 set_property IOSTANDARD LVCMOS33 [get_ports SPI_OUT]
-#Sch name = JC4
-#set_property PACKAGE_PIN A17 [get_ports {SA_COL_OUT[1]}]
-#set_property IOSTANDARD LVCMOS33 [get_ports {SA_COL_OUT[1]}]
-#Sch name = JC7
-#set_property PACKAGE_PIN B15 [get_kports {SA_ROW_OUT[2]}]
-#set_property IOSTANDARD LVCMOS33 [get_ports {SA_ROW_OUT[2]}]
 
-#set_property PACKAGE_PIN C15 [get_ports {SA_COL_OUT[2]}]
-#set_property IOSTANDARD LVCMOS33 [get_ports {SA_COL_OUT[2]}]
-
+## Small array (3x3) select on JB (test board J14), mapped for the TopmetalSe-Respin.
+## Chain: Basys3 pin -> J14 pin -> board net -> Caravel IO -> Respin pad
+##   JB1  A14 -> J14-1 SA_row_sel0 -> IO33 -> ROW_SEL2
+##   JB2  A16 -> J14-3 SA_row_sel1 -> IO32 -> ROW_SEL1
+##   JB3  B15 -> J14-5 SA_row_sel2 -> IO31 -> ROW_SEL0
+##   JB7  A15 -> J14-2 SA_col_sel0 -> IO36 -> (unused on Respin; Caravel mirrors IO36 onto IO26 = COL_SEL2)
+##   JB8  A17 -> J14-4 SA_col_sel1 -> IO35 -> COL_SEL1
+##   JB9  C15 -> J14-6 SA_col_sel2 -> IO34 -> COL_SEL0
+##   JB4  B16 -> J14-7 xclk_fpga (Caravel clock) -- left unassigned (high-Z)
+## For TopmetalSe V1 use: ROW[0]=A14 ROW[1]=A16 ROW[2]=B15 COL[0]=A15 COL[1]=A17 COL[2]=C15.
+set_property PACKAGE_PIN B15 [get_ports {SA_ROW_OUT[0]}]
+set_property PACKAGE_PIN A16 [get_ports {SA_ROW_OUT[1]}]
+set_property PACKAGE_PIN A14 [get_ports {SA_ROW_OUT[2]}]
+set_property PACKAGE_PIN C15 [get_ports {SA_COL_OUT[0]}]
+set_property PACKAGE_PIN A17 [get_ports {SA_COL_OUT[1]}]
+set_property PACKAGE_PIN A15 [get_ports {SA_COL_OUT[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SA_ROW_OUT[*]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SA_COL_OUT[*]}]
+# keep the select lines low (pixel deselected) while the FPGA outputs are released by SA_OUT_EN
+set_property PULLDOWN true [get_ports {SA_ROW_OUT[*]}]
+set_property PULLDOWN true [get_ports {SA_COL_OUT[*]}]
 #set_property PACKAGE_PIN B16 [get_ports xclk]
 #	set_property IOSTANDARD LVCMOS33 [get_ports xclk]
 
 
-#Pmod Header JB
-#Sch name = JB1ada
+## Large array on JC (test board J15). Unchanged for the TopmetalSe-Respin:
+## the board nets are labelled row/col the wrong way round (fixed in commit 83f209a),
+## so the FPGA's LA_COL_* already reach IO6-9 (Respin COL_*) and LA_ROW_* reach IO27-30 (Respin ROW_*).
+##   JC1  K17 LA_COL_RESET  -> J15-1 LA_row_rst     -> IO8  -> COL_RST
+##   JC7  L17 LA_ROW_RESET  -> J15-2 LA_col_rst     -> IO29 -> ROW_RST
+##   JC2  M18 LA_COL_DAT_IN -> J15-3 LA_row_data_in -> IO9  -> COL_DIN
+##   JC8  M19 LA_ROW_DAT_IN -> J15-4 LA_col_data_in -> IO30 -> ROW_DIN
+##   JC3  N17 LA_COL_SHIFT  -> J15-5 LA_row_ena     -> IO7  -> COL_ENA
+##   JC9  P17 LA_ROW_SHIFT  -> J15-6 LA_col_ena     -> IO28 -> ROW_ENA
+##   JC4  P18 LA_COL_CLK    -> J15-7 LA_row_clk     -> IO6  -> COL_CLK (J10 pins 1-2)
+##   JC10 R18 LA_ROW_CLK    -> J15-8 LA_col_clk     -> IO27 -> ROW_CLK
+#Pmod Header JC
+#Sch name = JC1
 set_property PACKAGE_PIN K17 [get_ports LA_COL_RESET]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_ROW_RESET]
-##Sch name = JB2
+##Sch name = JC7
 set_property PACKAGE_PIN L17 [get_ports LA_ROW_RESET]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_COL_RESET]
-##Sch name = JB3
+##Sch name = JC2
 set_property PACKAGE_PIN M18 [get_ports LA_COL_DAT_IN]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_ROW_DAT_IN]
-#Sch name = JB4
+#Sch name = JC8
 set_property PACKAGE_PIN M19 [get_ports LA_ROW_DAT_IN]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_COL_DAT_IN]
-##Sch name = JB7
+##Sch name = JC3
 set_property PACKAGE_PIN N17 [get_ports LA_COL_SHIFT]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_ROW_SHIFT]
-##Sch name = JB8
+##Sch name = JC9
 set_property PACKAGE_PIN P17 [get_ports LA_ROW_SHIFT]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_COL_SHIFT]
-##Sch name = JB9
+##Sch name = JC4
 set_property PACKAGE_PIN P18 [get_ports LA_COL_CLK]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_ROW_CLK]
-##Sch name = JB10
+##Sch name = JC10
 set_property PACKAGE_PIN R18 [get_ports LA_ROW_CLK]
 set_property IOSTANDARD LVCMOS33 [get_ports LA_COL_CLK]
 
