@@ -114,6 +114,11 @@ architecture Behavioral of tmSe_leader is
     SIGNAL SA_OUT_EN_SYNC : std_logic_vector(1 downto 0) := "00";
     
     SIGNAL SW_ALL : std_logic_vector(15 downto 0); -- SW_ALL(n) = switch SWn on the Basys3
+    
+    -- ROW_SEL1 (Caravel IO32) is shorted to VDDIO on the current TopmetalSe-Respin part, so
+    -- driving it low would sink a large current into the short. Keep it released (high-Z).
+    -- Set to true for a part without the short.
+    CONSTANT SA_ROW1_DRIVE : boolean := false;
         
     SIGNAL SA_PXL_ADDR : std_logic_vector(3 downto 0);
     SIGNAL SA_PXL_VAL : std_logic := '0';
@@ -277,7 +282,9 @@ BEGIN
             & SA_COL_SWITCH(0) & SA_COL_SWITCH(1) & SA_COL_SWITCH(2)   -- SW12..SW10
             & SA_OUT_EN & SW_SPARE & CONFIGURE_LED & RESET;            -- SW9, SW8..SW2, SW1, SW0
     
-    SA_ROW_OUT <= SA_ROW_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
+    SA_ROW_OUT(0) <= SA_ROW_BUF(0) WHEN SA_OUT_EN_SYNC(1) = '1' ELSE 'Z';
+    SA_ROW_OUT(1) <= SA_ROW_BUF(1) WHEN SA_OUT_EN_SYNC(1) = '1' AND SA_ROW1_DRIVE ELSE 'Z';
+    SA_ROW_OUT(2) <= SA_ROW_BUF(2) WHEN SA_OUT_EN_SYNC(1) = '1' ELSE 'Z';
     SA_COL_OUT <= SA_COL_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
     
     --Instantiate a UART, and SPI for a UART-SPI Bridge

@@ -193,7 +193,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports SPI_OUT]
 ## Small array (3x3) select on JB (test board J14), mapped for the TopmetalSe-Respin.
 ## Chain: Basys3 pin -> J14 pin -> board net -> Caravel IO -> Respin pad
 ##   JB1  A14 -> J14-1 SA_row_sel0 -> IO33 -> ROW_SEL2
-##   JB2  A16 -> J14-3 SA_row_sel1 -> IO32 -> ROW_SEL1
+##   JB2  A16 -> J14-3 SA_row_sel1 -> IO32 -> ROW_SEL1 (never driven: IO32 shorted to VDDIO, see SA_ROW1_DRIVE)
 ##   JB3  B15 -> J14-5 SA_row_sel2 -> IO31 -> ROW_SEL0
 ##   JB7  A15 -> J14-2 SA_col_sel0 -> IO36 -> (unused on Respin; Caravel mirrors IO36 onto IO26 = COL_SEL2)
 ##   JB8  A17 -> J14-4 SA_col_sel1 -> IO35 -> COL_SEL1

@@ -57,6 +57,7 @@ bitstream work). With SW8 on, the LEDs show the last DAC word as before (SW1 pic
 
 The Respin's COL_SEL2 is on Caravel IO26, which the test board does not wire. The FPGA's column-2 line
 reaches IO36 instead, and the Caravel firmware `TopmetalSe-V1/Firmware/respin_sa/fpga_mode` copies IO36 to IO26.
+ROW_SEL1 (Caravel IO32) is shorted to VDDIO on the current Respin part, so the FPGA never drives it (`SA_ROW1_DRIVE` in `tmSe_leader.vhd`; set it to true for a good part). Row 1 is therefore always selected, and only pixels 3-5 can be selected on their own.
 The large array pins are unchanged: the FPGA already compensates for the swapped row/col net labels on the board (commit 83f209a).
 
 # SPI Control for TI DAC 8568
