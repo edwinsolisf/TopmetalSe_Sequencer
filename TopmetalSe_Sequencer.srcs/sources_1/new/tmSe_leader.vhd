@@ -43,7 +43,8 @@ entity tmSe_leader is
     SA_COL_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
     SA_ROW_SWITCH          : IN STD_LOGIC_VECTOR( 2 downto 0); --switches
     SA_OUT_EN              : IN std_logic; --switch: '1' = FPGA drives SA select lines, '0' = high-Z (Caravel may drive them)
-    SW_SPARE               : IN STD_LOGIC_VECTOR( 8 downto 2); --switches SW2-SW8 (SW8 = LED mode)
+    SW_SPARE               : IN STD_LOGIC_VECTOR( 8 downto 2); --switches SW2-SW8: SW2 next pixel, SW3 next row,
+                                                               --SW4 pixel 0, SW7 manual LA mode, SW8 LED mode
     
     
     --OUTPUTS
@@ -67,6 +68,9 @@ entity tmSe_leader is
     SPI_SCLK        : OUT std_logic;  --PMOD
     
     led             : OUT std_logic_vector(15 downto 0);
+    seg             : OUT std_logic_vector(6 downto 0); -- 7-segment display: pixel number in manual LA mode
+    an              : OUT std_logic_vector(3 downto 0);
+    dp              : OUT std_logic;
     FRAME_START     : OUT std_logic; --PMOD;
     TRIG_OUT        : OUT std_logic --PMOD
 	--CLK_OUT         : OUT std_logic
@@ -114,6 +118,15 @@ architecture Behavioral of tmSe_leader is
     SIGNAL SA_OUT_EN_SYNC : std_logic_vector(1 downto 0) := "00";
     
     SIGNAL SW_ALL : std_logic_vector(15 downto 0); -- SW_ALL(n) = switch SWn on the Basys3
+    
+    -- Large array: automatic sequencer outputs, manual stepper outputs, and SW7 selecting between them
+    SIGNAL SEQ_ROW_RESET, SEQ_COL_RESET, SEQ_ROW_CLK, SEQ_COL_CLK : std_logic;
+    SIGNAL MAN_ROW_CLK, MAN_ROW_ENA, MAN_ROW_RST, MAN_ROW_DIN : std_logic;
+    SIGNAL MAN_COL_CLK, MAN_COL_ENA, MAN_COL_RST, MAN_COL_DIN : std_logic;
+    SIGNAL MAN_ROW_BCD, MAN_COL_BCD : std_logic_vector(7 downto 0);
+    SIGNAL SEG_AN : std_logic_vector(3 downto 0);
+    SIGNAL LA_MANUAL_SYNC : std_logic_vector(1 downto 0) := "00";
+    SIGNAL LA_MANUAL : std_logic;
     
     -- ROW_SEL1 (Caravel IO32) is shorted to VDDIO on the current TopmetalSe-Respin part, so
     -- driving it low would sink a large current into the short. Keep it released (high-Z).
@@ -216,10 +229,16 @@ architecture Behavioral of tmSe_leader is
     
 BEGIN
     TM_CLK_BUF <= EXTERN_CLK;
-    LA_ROW_SHIFT <= LA_ROW_SHIFT_BUF;
-    LA_COL_SHIFT <= LA_COL_SHIFT_BUF;
-    LA_ROW_DAT_IN <= LA_ROW_DAT_BUF;
-    LA_COL_DAT_IN <= LA_COL_DAT_BUF;
+    -- SW7 on: the large array is stepped by hand (la_manual), otherwise by clock_sequencer
+    LA_MANUAL <= LA_MANUAL_SYNC(1);
+    LA_ROW_SHIFT  <= MAN_ROW_ENA WHEN LA_MANUAL = '1' ELSE LA_ROW_SHIFT_BUF;
+    LA_COL_SHIFT  <= MAN_COL_ENA WHEN LA_MANUAL = '1' ELSE LA_COL_SHIFT_BUF;
+    LA_ROW_DAT_IN <= MAN_ROW_DIN WHEN LA_MANUAL = '1' ELSE LA_ROW_DAT_BUF;
+    LA_COL_DAT_IN <= MAN_COL_DIN WHEN LA_MANUAL = '1' ELSE LA_COL_DAT_BUF;
+    LA_ROW_RESET  <= MAN_ROW_RST WHEN LA_MANUAL = '1' ELSE SEQ_ROW_RESET;
+    LA_COL_RESET  <= MAN_COL_RST WHEN LA_MANUAL = '1' ELSE SEQ_COL_RESET;
+    LA_ROW_CLK    <= MAN_ROW_CLK WHEN LA_MANUAL = '1' ELSE SEQ_ROW_CLK;
+    LA_COL_CLK    <= MAN_COL_CLK WHEN LA_MANUAL = '1' ELSE SEQ_COL_CLK;
 	FRAME_START <= FRAME_START_BUF;
 	
     ila: ila_0 PORT MAP(
@@ -246,10 +265,10 @@ BEGIN
     LA_COL_SHIFT  => LA_COL_SHIFT_BUF,
     ROW_DAT_IN    => LA_ROW_DAT_BUF,
     COL_DAT_IN    => LA_COL_DAT_BUF,
-    ROW_RESET     => LA_ROW_RESET,
-    COL_RESET     => LA_COL_RESET,
-    ROW_CLK       => LA_ROW_CLK,
-    COL_CLK       => LA_COL_CLK,
+    ROW_RESET     => SEQ_ROW_RESET,
+    COL_RESET     => SEQ_COL_RESET,
+    ROW_CLK       => SEQ_ROW_CLK,
+    COL_CLK       => SEQ_COL_CLK,
 	FRAME_START   => FRAME_START_BUF,
 	TRIGGER_OUT   => TRIG_OUT
 	
@@ -285,6 +304,29 @@ BEGIN
     SA_ROW_OUT(0) <= SA_ROW_BUF(0) WHEN SA_OUT_EN_SYNC(1) = '1' ELSE 'Z';
     SA_ROW_OUT(1) <= SA_ROW_BUF(1) WHEN SA_OUT_EN_SYNC(1) = '1' AND SA_ROW1_DRIVE ELSE 'Z';
     SA_ROW_OUT(2) <= SA_ROW_BUF(2) WHEN SA_OUT_EN_SYNC(1) = '1' ELSE 'Z';
+    
+    -- Large array stepped by hand: SW2 next pixel, SW3 next row, SW4 pixel 0 (each on, then off)
+    LA_MANUAL_MODE: process(INTERN_CLK)
+    BEGIN
+        IF RISING_EDGE(INTERN_CLK) THEN
+            LA_MANUAL_SYNC <= LA_MANUAL_SYNC(0) & SW_SPARE(7);
+        END IF;
+    END PROCESS;
+    
+    LA_MAN: entity work.la_manual PORT MAP (
+        CLK => INTERN_CLK, RESET => RESET,
+        STEP_PIXEL => SW_SPARE(2), STEP_ROW => SW_SPARE(3), GOTO_ZERO => SW_SPARE(4),
+        ROW_CLK => MAN_ROW_CLK, ROW_ENA => MAN_ROW_ENA, ROW_RST => MAN_ROW_RST, ROW_DIN => MAN_ROW_DIN,
+        COL_CLK => MAN_COL_CLK, COL_ENA => MAN_COL_ENA, COL_RST => MAN_COL_RST, COL_DIN => MAN_COL_DIN,
+        ROW_BCD => MAN_ROW_BCD, COL_BCD => MAN_COL_BCD
+    );
+    
+    -- Pixel number (row * 100 + column) on the 4-digit display, blank unless manual mode is on
+    DISPLAY: entity work.sevenseg PORT MAP (
+        CLK => INTERN_CLK, DIGITS => MAN_ROW_BCD & MAN_COL_BCD, SEG => seg, AN => SEG_AN
+    );
+    an <= SEG_AN WHEN LA_MANUAL = '1' ELSE "1111";
+    dp <= '1';
     SA_COL_OUT <= SA_COL_BUF WHEN SA_OUT_EN_SYNC(1) = '1' ELSE (others => 'Z');
     
     --Instantiate a UART, and SPI for a UART-SPI Bridge

@@ -19,7 +19,9 @@ set_property PACKAGE_PIN V17 [get_ports RESET]
 set_property IOSTANDARD LVCMOS33 [get_ports RESET]
 set_property PACKAGE_PIN V16 [get_ports CONFIGURE_LED]
 set_property IOSTANDARD LVCMOS33 [get_ports CONFIGURE_LED]
-# SW2-SW8: SW8 selects the LED mode (off = LEDs mirror the switches, on = DAC data)
+# SW2-SW8. Large array by hand (each acts when switched on, then off): SW2 next pixel,
+# SW3 next row (same column), SW4 back to pixel 0; SW7 on = manual mode (off = clock_sequencer).
+# SW8 selects the LED mode (off = LEDs mirror the switches, on = DAC data)
 set_property PACKAGE_PIN W16 [get_ports {SW_SPARE[2]}]
 set_property PACKAGE_PIN W17 [get_ports {SW_SPARE[3]}]
 set_property PACKAGE_PIN W15 [get_ports {SW_SPARE[4]}]
@@ -98,7 +100,22 @@ set_property PACKAGE_PIN L1 [get_ports {led[15]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {led[15]}]
 
 
-#7 segment display
+#7 segment display: pixel number (row * 100 + column) in manual large-array mode
+set_property PACKAGE_PIN W7 [get_ports {seg[0]}]
+set_property PACKAGE_PIN W6 [get_ports {seg[1]}]
+set_property PACKAGE_PIN U8 [get_ports {seg[2]}]
+set_property PACKAGE_PIN V8 [get_ports {seg[3]}]
+set_property PACKAGE_PIN U5 [get_ports {seg[4]}]
+set_property PACKAGE_PIN V5 [get_ports {seg[5]}]
+set_property PACKAGE_PIN U7 [get_ports {seg[6]}]
+set_property PACKAGE_PIN V7 [get_ports dp]
+set_property PACKAGE_PIN U2 [get_ports {an[0]}]
+set_property PACKAGE_PIN U4 [get_ports {an[1]}]
+set_property PACKAGE_PIN V4 [get_ports {an[2]}]
+set_property PACKAGE_PIN W4 [get_ports {an[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[*]}]
+set_property IOSTANDARD LVCMOS33 [get_ports dp]
+set_property IOSTANDARD LVCMOS33 [get_ports {an[*]}]
 #set_property PACKAGE_PIN W7 [get_ports {seg[0]}]
 #	set_property IOSTANDARD LVCMOS33 [get_ports {seg[0]}]
 #set_property PACKAGE_PIN W6 [get_ports {seg[1]}]

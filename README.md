@@ -60,6 +60,24 @@ reaches IO36 instead, and the Caravel firmware `TopmetalSe-V1/Firmware/respin_sa
 ROW_SEL1 (Caravel IO32) is shorted to VDDIO on the current Respin part, so the FPGA never drives it (`SA_ROW1_DRIVE` in `tmSe_leader.vhd`; set it to true for a good part). Row 1 is therefore always selected, and only pixels 3-5 can be selected on their own.
 The large array pins are unchanged: the FPGA already compensates for the swapped row/col net labels on the board (commit 83f209a).
 
+# Stepping the large array by hand (switches)
+
+With **SW7 on**, the switches step the large array instead of `clock_sequencer` (SW7 off: the
+sequencer runs as before). Each switch acts when it is turned **on and then off** (debounced, ~10 ms):
+
+| Switch | Action |
+|---|---|
+| SW2 | next pixel in raster order (column + 1; after column 99, column 0 of the next row; after 9999, pixel 0) |
+| SW3 | next row, same column (after row 99, row 0) |
+| SW4 | back to pixel 0 (both registers cleared, then a '1' clocked into row 0 and column 0) |
+
+The 4-digit display shows the current pixel number (row * 100 + column, i.e. RRCC) while SW7 is on.
+The first SW2/SW3 step after power-up also goes to pixel 0. Each step is one ~1 us clock pulse on the
+row and/or column register (`la_manual.vhd`), with DIN set up before the rising edge.
+
+Setup: J15 on JC, J10 on LA_Row_Clk (pins 1-2), and Caravel running firmware that leaves the
+large-array pins as inputs (`TopmetalSe-V1/Firmware/respin_sa`, `make PROG=fpga_mode flash`).
+
 # SPI Control for TI DAC 8568
 Inside util/, I include a python script which generates the 32-bit values to control a [Texas Instruments DAC 8568](https://www.ti.com/product/DAC8568?utm_source=google&utm_medium=cpc&utm_campaign=asc-null-null-GPN_EN-cpc-pf-google-wwe&utm_content=DAC8568&ds_k=DAC8568&DCM=yes&gclid=EAIaIQobChMIwIbj3O62_wIV-y-tBh3P_wriEAAYASAAEgLwtPD_BwE&gclsrc=aw.ds).
 
